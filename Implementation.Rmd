@@ -1,0 +1,143 @@
+Implementation Phase
+========================================================
+
+The purpose of the implementation phase is to conduct repeated removals from the population until no more animals are detected.  This script takes data collected from each removal session to date and updates the estimate of the residual population size.  It also calculates an estimate of the effort required to remove the remaining individuals.
+
+
+### Read in the analysis toolset and required packages
+```{r read_functions,echo=TRUE,results='hide'}
+source("Framework functions.r")
+library(spatstat,quietly=T,verbose=F)
+library(maptools,quietly=T,verbose=F)
+
+region<- readShapeSpatial("footprint") # Insert ARCgis shapefile filename here
+region<- as.owin.SpatialPolygons(region[1,]) # index 1 for main island and ignore small islands
+region<- rescale(region,3.28083) #convert feet to meters
+
+area<- area.owin(region)/1e6 #in km2
+```
+area of region is `r area` km^2
+
+### Read in the removal/monitoring data collected to date
+
+Changes the filename below to point to the latest data update
+```{r read_data,cache=TRUE}
+filename<- "implement.data"
+data<- dget(filename)
+
+```
+### Data summary
+```{r data_summary,echo=FALSE,comment=""}
+removed<- caps.summary(data)
+nsess<- nrow(removed)
+removed
+```
+
+### Plot of cumulative removals/effort curve
+
+```{r cumplot, echo=FALSE, fig.height=5,fig.width=5}
+par(pty='s')
+plot(cumsum(removed$Effort),cumsum(removed$Removed),type='l',xlab="Cumulative effort",ylab="Cumulative removals")
+```
+
+### Update estimates
+
+#### Update of the residual population size
+
+```{r estimates,echo=FALSE,cache=TRUE}
+PopMax=500  # Insert maximum population size the model should consider
+cat(paste("Maximum likely population size set at ",PopMax),"\n")
+rem1<- Fit.RemMon(data, PopMax)
+save(rem1,file="rem1") # save estimates for use in decision support section
+
+cat(paste("Residual population size = ",round(rem1["Nresid",1])," with 95% credible interval of ",round(rem1["Nresid",3]),"-",round(rem1["Nresid",5]),sep=""),"\n")
+```
+
+#### Update of the total population size
+```{r totalpop,echo=FALSE}
+cat(paste("Total population size = ",round(rem1["N[1]",1])," with 95% credible interval of ",round(rem1["N[1]",3]),"-",round(rem1["N[1]",5]),sep=""),"\n")
+
+```
+#### Progress to date
+
+Plot of the reduction in true population size against removal session (+/- 95% Credible intervals)
+
+```{r progress, echo=FALSE, fig.width=5,fig.height=5}
+par(pty="s")
+plot(0:nsess,rem1[1:(nsess+1),1],type='l',xlab="Session number",ylab="Population size",ylim=c(0,rem1[1,1]))
+lines(0:nsess,rem1[1:(nsess+1),3],lty=2)
+lines(0:nsess,rem1[1:(nsess+1),5],lty=2)
+abline(h=rem1["Nresid",1],col="red")
+text(1,rem1["Nresid",1]+3,paste("residual pop now ",round(rem1["Nresid",1],1)),cex=0.8)
+
+```
+
+
+### Update effort required to eradicate residual population
+
+Parameter estimates for the removal method are derived from the analysis above.  Here 'sampling units' are the number of unique devices set for the same number of nights as was used for the removal sampling. The maximum number to evaluate is require to be input by the user
+
+```{r removal_effort,echo=FALSE, fig.height=5,fig.width=5}
+par1<- rem1["a1",c(1,2)]
+par2<- rem1["b1",c(1,2)]
+n.resid<- round(rem1["Nresid",1])
+# Input maximum number of devices
+max.traps=500
+cat(paste("Maximum devices set at ",max.traps),"\n")
+nt<- round(seq(1,max.traps,length.out=100))
+
+cover<- rep(NA,100)
+for(i in 1:100) cover[i]<- calc.coverage.cams(nt[i],rad=1000,region=region)
+
+sens<- calc.trap.sens(par1,par2,nt,cover,n.resid,n=100000)
+
+par(pty="s")
+plot(nt,n.resid-sens$n.rem,type='l',xlab="Sampling units",ylab="Pop remaining",ylim=c(0,n.resid))
+lines(nt,n.resid-sens$r.lcl,lty=2)
+lines(nt,n.resid-sens$r.ucl,lty=2)
+
+```
+
+### Update monitoring effort required to maximise detection rates
+
+Uses estimates of monitoring detectability derived from analysis above.  The maximum number of devices must be input by the user.
+
+Plot 'a' is camera monitoring and plot 'b' is sign survey plots (on roads)
+
+```{r monitor_effort,echo=FALSE,comment="",fig.height=5,fig.width=10}
+par1<- rem1["a2",c(1,2)]
+
+max.cams=200
+cat(paste("Maximum cameras set at ",max.cams),"\n")
+nt<- round(seq(1,max.cams,length.out=100))
+
+cover<- rep(NA,100)
+for(i in 1:100) cover[i]<- calc.coverage.cams(nt[i],rad=1000,region=region)
+sens<- calc.mon.sens(par1,nt,cover,n=100000)
+
+par(pty='s',mfrow=c(1,2))
+plot(nt,sens$mu,type='l',ylim=c(0,1),xlab="Sampling units",ylab="Sensitivity")
+lines(nt,sens$lcl,lty=2)
+lines(nt,sens$ucl,lty=2)
+mtext("a")
+#----------------------------------------------
+# sign
+load("roads") # load the road network. Usually this will be a shapefile (see 'region' above) 
+par1<- rem1["a3",c(1,2)]
+
+max.sign=200
+cat(paste("Maximum sign set at ",max.sign),"\n")
+nt<- round(seq(1,max.sign,length.out=100))
+
+cover<- rep(NA,100)
+for(i in 1:100) cover[i]<- calc.coverage.sign(nt[i],rad=1000,roads,region=region)
+sens<- calc.mon.sens(par1,nt,cover,n=100000)
+
+
+plot(nt,sens$mu,type='l',ylim=c(0,1),xlab="Sampling units",ylab="Sensitivity")
+lines(nt,sens$lcl,lty=2)
+lines(nt,sens$ucl,lty=2)
+mtext("b")
+```
+
+
