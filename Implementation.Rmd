@@ -9,8 +9,10 @@ The purpose of the implementation phase is to conduct repeated removals from the
 source("Framework functions.r")
 library(spatstat,quietly=T,verbose=F)
 library(maptools,quietly=T,verbose=F)
-
+        
 region<- readShapeSpatial("footprint") # Insert ARCgis shapefile filename here
+
+
 region<- as.owin.SpatialPolygons(region[1,]) # index 1 for main island and ignore small islands
 region<- rescale(region,3.28083) #convert feet to meters
 
@@ -44,10 +46,22 @@ plot(cumsum(removed$Effort),cumsum(removed$Removed),type='l',xlab="Cumulative ef
 
 #### Update of the residual population size
 
-```{r estimates,echo=FALSE,cache=TRUE}
+```{r estimates,echo=FALSE,cache=TRUE
+
 PopMax=500  # Insert maximum population size the model should consider
 cat(paste("Maximum likely population size set at ",PopMax),"\n")
 rem1<- Fit.RemMon(data, PopMax)
+
+PopMax=250  # Insert maximum population size the model should consider
+cat(paste("Maximum likely population size set at ",PopMax),"\n")
+if(all(is.na(removed$Sign))) {
+ cat("No sign data - using removal + camera data")
+  rem1<- Fit.CamMon(data, PopMax)
+} else {
+  cat("Sign data present - using removal + camera + sign data") 
+  rem1<- Fit.CompMon(data, PopMax)
+}
+
 save(rem1,file="rem1") # save estimates for use in decision support section
 
 cat(paste("Residual population size = ",round(rem1["Nresid",1])," with 95% credible interval of ",round(rem1["Nresid",3]),"-",round(rem1["Nresid",5]),sep=""),"\n")
@@ -69,6 +83,9 @@ lines(0:nsess,rem1[1:(nsess+1),3],lty=2)
 lines(0:nsess,rem1[1:(nsess+1),5],lty=2)
 abline(h=rem1["Nresid",1],col="red")
 text(1,rem1["Nresid",1]+3,paste("residual pop now ",round(rem1["Nresid",1],1)),cex=0.8)
+
+text(-1,rem1["Nresid",1]+3,paste("residual pop now ",round(rem1["Nresid",1],1)),cex=0.6,pos=4)
+
 
 ```
 
@@ -122,6 +139,7 @@ lines(nt,sens$ucl,lty=2)
 mtext("a")
 #----------------------------------------------
 # sign
+if(!all(is.na(removed$Sign))) {
 load("roads") # load the road network. Usually this will be a shapefile (see 'region' above) 
 par1<- rem1["a3",c(1,2)]
 
@@ -138,6 +156,9 @@ plot(nt,sens$mu,type='l',ylim=c(0,1),xlab="Sampling units",ylab="Sensitivity")
 lines(nt,sens$lcl,lty=2)
 lines(nt,sens$ucl,lty=2)
 mtext("b")
+
+}
+
 ```
 
 

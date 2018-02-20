@@ -8,7 +8,7 @@ The objective of the pre-implementation stage is to provide an initial estimate 
 ```{r}
 counts<- as.matrix(read.csv("pcounts.csv"))
 # read in toolset
-source("Framework_functions.r")
+source("Framework functions.r")
 ```
 
 The number of cameras in this dataset is `r dim(counts)[1]`
