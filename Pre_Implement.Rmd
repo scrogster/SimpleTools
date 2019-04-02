@@ -1,53 +1,110 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
 Pre-implementation
 ========================================================
 
-The objective of the pre-implementation stage is to provide an initial estimate of population size/density.  This script estimates density using data from 'point counts'.  Two methods are used the 'N Mixture model' and the 'Royle/Nichols model'  
+The objective of the pre-implementation stage is to provide an initial estimate of population size/density.  This script estimates density using data from 'point counts'.  Two methods are used the 'N Mixture model' and the 'Royle/Nichols model'  Both these models will be biased if average home range size differs markedly from the set cellsize.  Future versions will use more robust models for estimation
 
-### Read in the data and analysis toolset
+```{r setup, include=FALSE}
+library(knitr)
+library(raster)
+library(sf)
+library(tidyverse)
+```
+### Load functions and Read in region shapefile ...
 
 ```{r}
-counts<- as.matrix(read.csv("pcounts.csv"))
-# read in toolset
 source("Framework_functions.r")
+region<- read_sf("Data/.","San_Nicolas_projected")
+
+```
+
+### rasterize the region to get sampling quadrats and select a random sample 
+
+```{r}
+res<- 1000 # cell size in meters
+nsamp<- 30 # number of sampled cells
+```
+
+The region has been divided up into cells of size `r res` meters and a radom sample of `r nsamp` cells will be selected
+
+```{r, echo=F, message=F}
+bb<- st_bbox(region)
+rast<- raster(xmn=bb$xmin,xmx=bb$xmax,ymn=bb$ymin,ymx=bb$ymax,resolution=res)
+rast<- rasterize(region, rast, field=1)
+rast_df<- raster_data(rast)
+rcells<- as_tibble(sampleRandom(rast, size=nsamp, xy=TRUE))
+
+p1<- region %>% ggplot() +
+  geom_sf() +
+  geom_tile(aes(x, y, fill=value), color="grey50", data=rast_df, show.legend = F) +
+  scale_fill_gradientn(colors="lightblue",na.value="white") +
+  geom_point(aes(x,y),data=rcells) +
+  geom_sf(fill=NA) +
+  labs(x="Easting",y="Northing",title="Quadrats in sampled Region - black points denote sampled quadrats")
+p1
+
+saveRDS(rast, "Results/rast.rds") # Save raster for decision support phase
+```
+
+### Read in the data 
+
+```{r}
+counts<- readRDS("Data/pcounts.rds")
+
 ```
 
 The number of cameras in this dataset is `r dim(counts)[1]`
 
 The number of days exposure for this dataset is `r dim(counts)[2]`
 
-### Set the total number of sampling quadrats on the island
+### Get the total number of sampling quadrats on the island
 ```{r setparams}
-nq<- 58
+nq<- sum(rast_df$value, na.rm=TRUE)
 
 ```
 
+The total number of quadrats in the region is `r nq`
 
 a quick look at the data:
 -------------------------
 ```{r createtable, results='asis',echo=FALSE}
 # Number of individuals/visits per camera
 df<- apply(counts,1,sum)
-df<- cbind(1:dim(counts)[1],df)
-cat("Device | detections", "---------- | -------",sep="\n")
-cat(apply(df,1,function(X) paste(X, collapse=" | ")),sep="\n")
+df<- tibble(Camera=1:dim(counts)[1],Visits=df)
+kable(df, row.names = FALSE, caption = "Camera summary", format="html",align="c") %>% 
+  kable_styling(bootstrap_options="striped", font_size=12)
 
 ```
 
-### Run the N-mixture model.  
+### Run the N-mixture and RN models.  
 
-This model assumes that each count is the number of individuals observed
+N-mixture model assumes that each count is the number of individuals observed
 
-```{r, echo=FALSE}
+RN model model reduces the data to presence/absence per camera per night
 
-fit1<- Fit.NmixModel(counts, nq)
-cat(paste("Population size = ",round(fit1["PopEst",1])," with 95% credible interval of ",round(fit1["PopEst",3]),"-",round(fit1["PopEst",5]),sep=""),"\n")
+```{r, include=F}
+est1<- Fit.NmixModel(counts, nq, n.iter=20000, n.burn=10000, n.chains=3)
+est2<- Fit.RNModel(counts, nq, n.iter=20000, n.burn=10000, n.chains=3)
+
+saveRDS(est2, "Results/est2.rds")  # Save results for decision support phase
 ```
 
-### Run the RN Model.  
-This model reduces the data to presence/absence per camera per night
+### N-mixture estimate.  
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, message=FALSE}
 
-fit2<- Fit.RNModel(counts, nq)
-cat(paste("Population size = ",round(fit2["PopEst",1])," with 95% credible interval of ",round(fit2["PopEst",3]),"-",round(fit2["PopEst",5]),sep=""),"\n")
+cat(paste("Population size = ",round(est1["PopEst","mean"])," with 95% credible interval of ",
+          round(est1["PopEst","2.5%"]),"-",round(est1["PopEst","97.5%"]),sep=""),"\n")
+
 ```
+
+### RN estimate
+```{r, echo=F, message=F}
+cat(paste("Population size = ",round(est2["PopEst","mean"])," with 95% credible interval of ",
+          round(est2["PopEst","2.5%"]),"-",round(est2["PopEst","97.5%"]),sep=""),"\n")
+```
+

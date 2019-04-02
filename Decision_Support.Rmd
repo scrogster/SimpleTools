@@ -1,79 +1,147 @@
 Decision Support Phase
 ========================================================
 
-This phase takes estimates of the sensitivity (detection probability) of each monitoring method used in the implementation phase and calculates the number of repeat monitorings required to confirm eradication.  It is assumed that the number of devices (and nights) set for each method is set by the user.  Also the stopping rule criterion needs to be set by the user.  Here the stopping rule is based on minimising the type I error rate (probability of failure).
+This phase takes estimates of the sensitivity (detection probability) of each monitoring method used and calculates the number of repeat monitorings required to confirm eradication.  It is assumed that the number of devices (and nights) set for each method is set by the user.  Also the stopping rule criterion needs to be set by the user.  Here the stopping rule is based on minimising the type I error rate (probability of pest eradication | no pests detected).
 
-### Read in estimates
-
-Read in the latest estimates of monitoring detection parameters from the implementation phase.  This will usually be from the last update when nominal eradication was declared
-
-```{r read_est, echo=TRUE, results='hide'}
-# Loading analysis toolset
-source("Framework functions.r")
-library(spatstat,quietly=T,verbose=F)
-library(maptools,quietly=T,verbose=F)
-
-region<- readShapeSpatial("footprint") # Insert ARCgis shapefile filename here
-region<- as.owin.SpatialPolygons(region[1,]) # index 1 for main island and ignore small islands
-region<- rescale(region,3.28083) #convert feet to meters
-
-# Loading latest updated analysis results (change filename below)
-filename<- "rem1" 
-load(filename)
-load("roads") # this would normally be a shapefile
+```{r setup, include=FALSE}
+library(knitr)
+library(raster)
+library(sf)
+library(tidyverse)
 ```
+### Load functions and read in region shapefile ...
+
+```{r}
+source("Framework_functions.r")
+region<- read_sf("Data/.","San_Nicolas_projected")
+
+```
+
+### Rasterize the region for spatial sampling 
+
+```{r}
+res<- 500 # cell size in meters
+
+```
+
+The region has been divided up into cells of size `r res` meters.  Sampling units will be assigned randomly  
+
+```{r, echo=F, message=F}
+bb<- st_bbox(region)
+rast<- raster(xmn=bb$xmin,xmx=bb$xmax,ymn=bb$ymin,ymx=bb$ymax,resolution=res)
+rast<- rasterize(region, rast, field=1)
+rast_df<- raster_data(rast)
+
+p1<- region %>% ggplot() +
+  geom_tile(aes(x, y, fill=value), color="grey50", data=rast_df, show.legend = F) +
+  scale_fill_gradientn(colors="lightblue",na.value="white") +
+  geom_sf(fill=NA) +
+  labs(x="Easting",y="Northing",title="Monitoring Cells in sampled region")
+p1
+
+nq<- sum(rast_df$value, na.rm=TRUE) # number of potential monitoring cells 
+```
+
+The total number of potential monitoring cells is **`r nq`**
 
 ### Set parameters for the decision support monitoring
 
-The following parameters required user input
+**The following parameters require user input**
 
 ```{r setparams,echo=FALSE}
-ncams=30
-cat(paste("Maximum cameras set at ",ncams),"\n")
-nsign=200
-cat(paste("Maximum sign survey plots set at ",nsign),"\n")
-nmax<- 10
-cat(paste("Maximum number of repeat surveys set at ",nmax),"\n")
-Radius<- 1000
-cat(paste("Effective strip width around each device set at ",Radius," meters"),"\n")
-P.Fail<- 0.01
-cat(paste("Stopping rule (probability of eradication failure) set at ",P.Fail),"\n")
+ncells<- floor(nq * 0.8)  # select proportion of available cells for monitoring
+nsessions<- 20
+ndays<- 20
+ndevices<- 1
+thresh.pfree<- 0.95
+device.est<- data.frame(mean= -5, sd=2)  # logit scale per device per day
+nsims<- 1000
+
+params<- list(ntraps=ndevices, ndays=ndays, ncells=ncells, dpar=device.est)
 ```
 
+The number of cells selected for monitoring is: **`r ncells`**, which is **`r round(ncells/nq*100)`**% coverage 
+
+Maximum number of monitoring sessions set to: **`r nsessions`**
+
+Consecutive monitoring days per session set to: **`r ndays`**
+
+Number of devices per monitoring cell set to: **`r ndevices`**
+
+Detection parameters for devices set to a mean of **`r device.est$mean`** with a standard deviation of **`r device.est$sd`** on the logit scale
+
+Number of simulated monitorings undertaken: **`r nsims`**
+
+## Set the stopping rule
+
+Stopping rule (threshold for probability of pest eradication | none detected) set to: **`r thresh.pfree`**
+
+*Conduct moniotring and update stopping rule*
+
 ```{r, echo=FALSE}
-# read parameters
-par1<- rem1["a2",c(1,2)]
-par2<- rem1["a3",c(1,2)]
+mat<- matrix(NA, nrow=nsessions, ncol=4)
+colnames(mat)<- c("Session","P.erad","LCL","UCL")
 
-post.sens<- matrix(0,nrow=nmax,ncol=6)
-post.sens[1,]<- Update.prior(par1=par1,par2=par2,prior.par=c(1,1),ncams=ncams,nsign=nsign,roads=roads,region=region,rad=Radius)
+prior.params<- list(a=1.5,b=1.5) # initial uninformative prior
+res= calc.erad(rast, nsims, prior.params, params)
+updated.priors<- calc.beta.parms(res$P.erad)
+mat[1,]<- c(1,qbeta(0.5,1.5,1.5),qbeta(0.025,1.5,1.5),qbeta(0.975,1.5,1.5))
 
-# Update
-for(i in 2:nmax) {
-prior.par<- post.sens[i-1,c(5,6)]  
-post.sens[i,]<- Update.prior(par1=par1,par2=par2,prior.par=prior.par,ncams=ncams,nsign=nsign,roads=roads,region=region,rad=Radius)
+# Update for {n} monitoring sessions
 
+for(i in 2:nsessions) {
+  cat("Updating session ",i,"\n")
+  res= calc.erad(rast, nsims, updated.priors, params)
+  updated.priors<- calc.beta.parms(res$P.erad)
+  mat[i,]<- c(i,median(res$P.erad),quantile(res$P.erad,c(0.025,0.975)))
 }
 
-post.sens<- data.frame(post.sens)
-names(post.sens)<- c("mu","sd","lcl","ucl","a","b")
+mat<- as_tibble(mat)
+
 ```
 
 ### Optimal amount of monitoring
 
 ```{r, echo=FALSE}
-nmin<- min(which(post.sens$mu < P.Fail))
-cat(paste("Minimum number of repeat monitors with current sample size is ",nmin),"\n")
+nmin<- min(which(mat$P.erad > thresh.pfree))
+if(is.finite(nmin)) cat(paste("Minimum number of repeat monitors with current sample size is ",nmin),"\n")
+if(!is.finite(nmin)) cat(paste("Threshold not reached in ",nsessions," sessions"),"\n")
 ```
 
 ### Plot results
 
-The plot below shows the relationship between the number of repeat monitors and the probability of eradication failure.
+The plot below shows the relationship between the number of repeat monitors and the probability of pest eradication.
 
-```{r, fig.height=5,fig.width=5, echo=FALSE}
-par(pty='s')
-plot(1:nmax,post.sens$mu,type='l',ylim=c(0,1),xlab="repeat monitorings",ylab="Probability")
-lines(1:nmax,post.sens$ucl,lty=2)
-abline(h=P.Fail,lty=3,col="red")
-
+```{r, fig.height=6, fig.width=6, echo=FALSE}
+p2<- mat %>% ggplot(aes(Session)) +
+      geom_ribbon(aes(ymin=LCL,ymax=UCL),fill="grey70") +
+      geom_line(aes(y=P.erad), size=1.5) +
+      labs(x="Session",y="Probability of Eradication") +
+      geom_hline(yintercept=thresh.pfree, linetype=2, colour="red", size=1.5)
+p2
 ```
+
+### Plot of System sensitivity
+```{r, fig.height=6, fig.width=6, echo=FALSE, warning=FALSE}
+tmp<- data.frame(SSe=res$SSe)
+p3<- tmp %>% ggplot(aes(SSe)) +
+      geom_histogram(binwidth=0.01, fill="lightblue", colour="black") +
+      labs(x="SSe",y="Frequency")
+      xlim(0, 1)
+p3
+```
+
+Average SSe is `r round(mean(tmp$SSe),3)` with 95% Confidence intervals of `r round(quantile(tmp$SSe, 0.025),3)` - `r round(quantile(tmp$SSe, 0.975),3)`
+
+
+```{r, fig.height=6, fig.width=6, echo=FALSE}
+
+tmp_rast<- raster_data(res$map)
+p4<- region %>% ggplot() +
+      geom_raster(aes(x, y, fill=value), data=tmp_rast, interpolate=F) +
+      scale_fill_distiller(palette="Spectral",na.value="white",limits=c(0, 1)) +
+      geom_sf(fill=NA) +
+      labs(x="Easting",y="Northing",title="Map of system sensitivity (SSe)")
+p4
+```
+
