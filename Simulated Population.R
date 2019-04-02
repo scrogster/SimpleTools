@@ -1,3 +1,9 @@
+#===================================================================================
+#
+# Script to simulate the eradication of a simulated population from a defined area
+#
+#====================================================================================
+
 library(spatstat)
 library(tidyverse)
 library(sf)
@@ -105,12 +111,16 @@ straps<- as.ppp(traps, region)
 
 nights<- 30
 counts<- sim.count(nights, straps, pop)
-#counts<- as.matrix(counts[[1]])
+
+#===================================
+# Save simulated data
+saveRDS(counts, "Stuff/pcounts.rds")
+
+#===================================
+#  do some estimates
+
 nq<- sum(rast_df$value, na.rm=TRUE)  # total number of 1km2 quadrats
 
-#saveRDS(counts, "Data/pcounts.rds")
-#counts<- readRDS("Data/pcounts.rds")
-#  do the estimates
 est1<- Fit.NmixModel(counts, nq, n.iter=20000, n.burn=10000, n.chains=3, msgs=T)
 
 est2<- Fit.RNModel(counts, nq, n.iter=20000, n.burn=10000, n.chains=3, msgs=T)
@@ -139,25 +149,33 @@ sig<- mean(marks(pop)$sig)
 g01<-mean(marks(pop)$g01) # mean camera g0
 w<- 2.45*sig
 integrate(HN, lower=0, upper=w, g0=g01, sig=sig, w=w)
+
+
+
 #=======================================================================================
 #
 # Implementation - removal trapping + extra camera + sign monitoring
 #
 #=======================================================================================
 
-# Example monitoring
+# Example monitoring using leg-hold traps (removal) and two additional monitoring methods
+# Cameras and sand plots on roads
 
-# removal traps
+# Simulate some monitoring locations
+
+# removal traps (150 traps with min 250m spacing)
 rtraps<- rSSI(r=250, n=150, win=region)
 
-# 30 random camera traps
+# 30 random camera traps at min 1000m spacing
 cam.traps<- rSSI(r=1000, n=30, win=region)
 
 # Random roads for sign surveys
 roads<- rpoisline(2e-4, win=region) 
 
+# random plots on roads
 sign.traps<- runifpointOnLines(40, roads)
 
+# Plot these
 win.graph(10,10)
 plot(roads,main="",col="red")
 plot(sign.traps,add=T)
@@ -165,47 +183,48 @@ plot(rtraps,add=T,chars=15)
 plot(cam.traps, add=T, chars=16, col="blue")
 draw.scale(c(1854000,471000),1000,"1 km",cex=0.8,offset=0.3)
 
-# Eradication program parameters
-months<- 30
-nights<- 10
+# Eradication program parameters----------------
 
-caps<- sim.remove.monitor(nights,months,animals=pop, traps=rtraps,monitor="cams",
+sessions<- 30  # uniques sessions
+nights<- 10  #consequtive nights per session
+
+caps<- sim.remove.monitor(nights,sessions,animals=pop, traps=rtraps,monitor="both",
                           cams=cam.traps,sign=sign.traps,roads=roads,min.r=250,move.devices = TRUE)
 
 caps.summary(caps)
 
 # Estimation
 #rem1<- Fit.RemMon(caps)
-rem1<- Fit.OneMon(caps, type="cams", msgs = T)
+#rem1<- Fit.OneMon(caps, type="cams", msgs = T)
 #rem1<- Fit.BothMon(caps)
 #rem1
 
-saveRDS(caps, file="Data/removal_data.rds")
+saveRDS(caps, file="Stuff/removal_data.rds")
 
 #------------------------------------------
-# Subsample sessions 
-nm<-10
-caps.tmp<- caps.subset(caps, nm)
+# Subsample sessions if needed
+nm<-10  # only 10 sessions
+caps.sub<- caps.subset(caps, nm)
 
-rem2<- Fit.RemMon(caps.tmp)
-rem2
+saveRDS(caps.sub, file="Stuff/removal_data_sub.rds")
 
 #=======================================================================================
 #
-# Decision support 
+# Decision support - to be applied once monitoring detects no individuals
 #
 #=======================================================================================
 
-par1<- data.frame(mean=-5.0, sd=1)
-nsims<- 1000
-n.sessions<-20  # Montioring session
+par1<- data.frame(mean=-5.0, sd=1) # detection probability device per-day (logit scale)
+nsims<- 10000 
+n.sessions<-20  # Montioring sessions
 ndays<- 20 # days per monitoring session
-ndevices<- 1 # devices per cell
-nq<- sum(rast_df$value, na.rm=TRUE)  # total number of quadrats ((cells)
-#nq<- 30
+ndevices<- 2 # devices per cell
+ncells<-  nq * 0.8  # Number of cells monitored as proportion of total 
+
+
 mat<- matrix(NA, nrow=n.sessions, ncol=4)
 colnames(mat)<- c("Session","P.erad","LCL","UCL")
-params<- list(ntraps=ndevices, ndays=ndays, ncells=nq, dpar=par1)
+params<- list(ntraps=ndevices, ndays=ndays, ncells=ncells, dpar=par1)
 
 prior.params<- list(a=1,b=1) # initial uninformative prior
 res= calc.erad(rast, nsims, prior.params, params)
@@ -223,6 +242,8 @@ for(i in 2:n.sessions) {
 
 mat<- as_tibble(mat)
 #------------------------------------------------------------------------------------------
+# Various plots
+
 win.graph(10,10)
 mat %>% ggplot(aes(Session)) +
   geom_ribbon(aes(ymin=LCL,ymax=UCL),fill="grey70") +
@@ -240,13 +261,9 @@ win.graph(10,10)
 tmp<- raster_data(res$map)
 shape %>% ggplot() +
   geom_raster(aes(x, y, fill=value), data=tmp, interpolate=F) +
-  scale_fill_distiller(palette="Spectral",na.value="white")  +
+  scale_fill_distiller(palette="Spectral",na.value="white", limits=c(0, 1))  +
   geom_sf(fill=NA) +
   labs(x="Easting",y="Northing",title="Map of system sensitivity (SSe)")
 
 
-  geom_point(aes(x, y), data=traps) +
-  geom_point(aes(x, y), data=as.data.frame(pop),shape=1) +
-  geom_sf(fill=NA) +
-  labs(x="Easting",y="Northing",title="San Nicolas Island")
 
