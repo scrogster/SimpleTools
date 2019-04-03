@@ -18,7 +18,7 @@ library(tidyverse)
 
 ```{r}
 source("Framework_functions.r")
-region<- read_sf("Data/.","San_Nicolas_projected")
+region<- read_sf("Stuff/.","San_Nicolas_projected")
 
 ```
 
@@ -53,7 +53,7 @@ saveRDS(rast, "Results/rast.rds") # Save raster for decision support phase
 ### Read in the data 
 
 ```{r}
-counts<- readRDS("Data/pcounts.rds")
+counts<- readRDS("Stuff/pcounts.rds")
 
 ```
 

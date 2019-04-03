@@ -16,7 +16,7 @@ library(kableExtra)
 ### Read in the region shapefile...
 
 ```{r}
-region<- read_sf("Data/.","San_Nicolas_projected")
+region<- read_sf("Stuff/.","San_Nicolas_projected")
 region<- filter(region, SP_ID==0)
 
 area<- st_area(region)/1e6 #in km2
@@ -28,7 +28,7 @@ area of region is `r round(area,1)` km^2
 
 Changes the filename below to point to the latest data update
 ```{r read_data}
-filename<- "Data/removal_data.rds"
+filename<- "Stuff/removal_data.rds"
 data<- readRDS(filename)
 
 ```

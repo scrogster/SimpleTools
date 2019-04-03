@@ -13,7 +13,7 @@ library(tidyverse)
 
 ```{r}
 source("Framework_functions.r")
-region<- read_sf("Data/.","San_Nicolas_projected")
+region<- read_sf("Stuff/.","San_Nicolas_projected")
 
 ```
 
