@@ -9,8 +9,7 @@ library(knitr)
 library(raster)
 library(sf)
 library(tidyverse)
-library(kableExtra)
-        
+
 ```
 
 ### Read in the region shapefile...
