@@ -9,8 +9,10 @@ library(tidyverse)
 library(sf)
 library(raster)
 library(maptools)
+#source utility functions
+source("Framework_functions.R")
 
-shape<- read_sf("Data/.","San_Nicolas_projected")
+shape<- read_sf("Stuff/.","San_Nicolas_projected")
 shape<- filter(shape, SP_ID==0) # ignore outlying islands
 
 bb<- st_bbox(shape)
@@ -19,7 +21,6 @@ rast<- raster(xmn=bb$xmin,xmx=bb$xmax,ymn=bb$ymin,ymx=bb$ymax,resolution=res)
 rast<- rasterize(shape, rast, field=1)
 rast_df<- raster_data(rast)
 
-win.graph(10,10)
 shape %>% ggplot() +
   geom_tile(aes(x, y, fill=value), color="grey50", data=rast_df, show.legend = F) +
   scale_fill_gradientn(colors="lightblue",na.value="white") +
@@ -32,11 +33,10 @@ region<- as.owin.SpatialPolygons(as(shape,"Spatial")) # convert to owin object
 #----------------------------------------------------------------
 # generate cat population (HR centre locations)
 pop<- runifpoint(150, win=region) # Cat population
-win.graph(10,10)
-plot(pop)
+plot(pop, pch=16)
 
 #-----------------------------------------------------------------
-# Set some parameters fro trap capture
+# Set some parameters for trap capture
 
 catHR<- list(min=5e5,max=3e6) # min and max cat home range size in m2
 sigmin<- sqrt(catHR$min /pi)/2.45   # min and max sigma
@@ -64,8 +64,8 @@ marks(pop)<- pars
 #----------------------------------------------
 # Plot distributions of parameters and other stuff
 
-win.graph(10,10)
-  par(pty="s",mfrow=c(1,2))
+
+layout(matrix(1:4, nrow=2, byrow=TRUE))
   xx<- seq(0,1,0.001)
   dg0<- dbeta(xx,g0mu/g0shape,(1-g0mu)/g0shape)
   xx<- g0min + (g0max - g0min) * xx
@@ -76,13 +76,11 @@ win.graph(10,10)
   xx<- sigmin + (sigmax - sigmin) * xx
   xx<- pi*(xx*2.45)^2/1e6 # 95% HR in km2
   plot(xx,dsig,type='l',xlim=c(0 ,3),xlab=expression(paste("Home range size (",km^2,")")),ylab="Probability   density")
-
-win.graph(10,10)
+  
   plot(region, main="")
   symbols(pop$x,pop$y,circles=pop$marks$sig*2.45,fg="gray50",add=T,inches=F)
   points(pop$x,pop$y,pch=19,cex=0.5)
 
-win.graph(10,10)
   plot(pop, use.marks=F,main="")
   draw.scale(c(1854000,471000),1000,"1 km",cex=0.8,offset=0.3)
 
@@ -98,12 +96,12 @@ ncams<- 40  # Set number of cameras
   
 traps<- as_tibble(sampleRandom(rast, size=ncams, xy=TRUE)) %>% dplyr::select(x, y)  # one camera per 1km2
 
-win.graph(10,10)
+layout(matrix(1))
 shape %>% ggplot() +
   geom_tile(aes(x, y, fill=value), color="grey50", data=rast_df, show.legend = F) +
   scale_fill_gradientn(colors="lightblue",na.value="white") +
   geom_point(aes(x, y), data=traps) +
-  geom_point(aes(x, y), data=as.data.frame(pop),shape=1) +
+  geom_point(aes(x, y), data=as.data.frame(pop),shape=1, col="red") +
   geom_sf(fill=NA) +
   labs(x="Easting",y="Northing",title="San Nicolas Island")
 
@@ -150,8 +148,6 @@ g01<-mean(marks(pop)$g01) # mean camera g0
 w<- 2.45*sig
 integrate(HN, lower=0, upper=w, g0=g01, sig=sig, w=w)
 
-
-
 #=======================================================================================
 #
 # Implementation - removal trapping + extra camera + sign monitoring
@@ -176,7 +172,7 @@ roads<- rpoisline(2e-4, win=region)
 sign.traps<- runifpointOnLines(40, roads)
 
 # Plot these
-win.graph(10,10)
+layout(matrix(1))
 plot(roads,main="",col="red")
 plot(sign.traps,add=T)
 plot(rtraps,add=T,chars=15)
@@ -185,8 +181,8 @@ draw.scale(c(1854000,471000),1000,"1 km",cex=0.8,offset=0.3)
 
 # Eradication program parameters----------------
 
-sessions<- 30  # uniques sessions
-nights<- 10  #consequtive nights per session
+sessions<- 30  # unique sessions
+nights<- 10  #consecutive nights per session
 
 caps<- sim.remove.monitor(nights,sessions,animals=pop, traps=rtraps,monitor="both",
                           cams=cam.traps,sign=sign.traps,roads=roads,min.r=250,move.devices = TRUE)
@@ -244,26 +240,27 @@ mat<- as_tibble(mat)
 #------------------------------------------------------------------------------------------
 # Various plots
 
-win.graph(10,10)
+
 mat %>% ggplot(aes(Session)) +
   geom_ribbon(aes(ymin=LCL,ymax=UCL),fill="grey70") +
   geom_line(aes(y=P.erad), size=1.5) +
   labs(x="Session",y="Probability of Eradication") +
-  geom_hline(yintercept=0.95, linetype=2, colour="red", size=1.5)
+  geom_hline(yintercept=0.95, linetype=2, colour="red", size=1.5)+
+  theme_bw()
 
-win.graph(10,10)
 tmp<- data.frame(SSe=res$SSe)
 tmp %>% ggplot(aes(SSe)) +
   geom_histogram(binwidth=0.01, fill="lightblue", colour="black") +
-  xlim(0, 1)
+  xlim(0, 1)+
+  theme_bw()
 
-win.graph(10,10)
 tmp<- raster_data(res$map)
 shape %>% ggplot() +
   geom_raster(aes(x, y, fill=value), data=tmp, interpolate=F) +
   scale_fill_distiller(palette="Spectral",na.value="white", limits=c(0, 1))  +
   geom_sf(fill=NA) +
-  labs(x="Easting",y="Northing",title="Map of system sensitivity (SSe)")
+  labs(x="Easting",y="Northing",title="Map of system sensitivity (SSe)")+
+  theme_bw()
 
 
 
