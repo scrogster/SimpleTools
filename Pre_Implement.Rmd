@@ -13,13 +13,14 @@ library(knitr)
 library(raster)
 library(sf)
 library(tidyverse)
+library(R.utils)
+library(kableExtra)
 ```
 ### Load functions and Read in region shapefile ...
 
 ```{r}
-source("Framework_functions.r")
-region<- read_sf("Stuff/.","San_Nicolas_projected")
-
+source("Framework_functions.R")
+region<- read_sf("Stuff","San_Nicolas_projected")
 ```
 
 ### rasterize the region to get sampling quadrats and select a random sample 
