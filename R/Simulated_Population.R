@@ -10,7 +10,7 @@ library(sf)
 library(raster)
 library(maptools)
 #source utility functions
-source("Framework_functions.R")
+source("R/Framework_functions.R")
 
 set.seed(666)
 
