@@ -12,6 +12,8 @@ library(maptools)
 #source utility functions
 source("Framework_functions.R")
 
+set.seed(666)
+
 shape<- read_sf("Stuff/.","San_Nicolas_projected")
 shape<- filter(shape, SP_ID==0) # ignore outlying islands
 
