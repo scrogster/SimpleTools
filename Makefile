@@ -10,7 +10,8 @@ Pre_Implement.html: Pre_Implement.Rmd R/Framework_functions.R Stuff/pcounts.rds 
 	Rscript -e "rmarkdown::render('Pre_Implement.Rmd')"
 
 #Implementation
-
+Implementation.html: Implementation.Rmd R/Framework_functions.R Pre_Implement.html
+	Rscript -e "rmarkdown::render('Implementation.Rmd')"
 
 #Decision Support
 
