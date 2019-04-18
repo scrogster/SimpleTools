@@ -26,7 +26,7 @@ ui<-fluidPage(
 				   numericInput(inputId="samples", label="samples", min=500, max=10000, value=1000, step=100),
 				   actionButton("Fit_mod", "Fit model")
 				   ),
-		mainPanel("Map",
+		mainPanel(
 				plotOutput(outputId = "map"),
 				verbatimTextOutput(outputId = "designstats")
 		)
@@ -65,8 +65,8 @@ server<-function(input, output){
 		tessel_cents<-tessel_cents[a$col.id]
 		
 		p1<- ggplot() +
-			geom_sf(data= reg, fill=NA) +
-			geom_sf(data=tessel, fill="lightblue", alpha=0.2) +
+			geom_sf(data= reg, fill="green", alpha=0.3) +
+			geom_sf(data=tessel, fill=NA) +
 			geom_sf(data=detectors, col="black") +
 			annotation_scale(location = "bl", width_hint = 0.4) +
 			annotation_north_arrow(location = "bl", which_north = "true", 
