@@ -1,4 +1,4 @@
-all: Stuff/pcounts.rds Pre_Implement.html
+all: Stuff/pcounts.rds Pre_Implement.html Implementation.html
 
 #Simulated population
 Stuff/pcounts.rds: R/Simulated_Population.R R/Framework_functions.R
