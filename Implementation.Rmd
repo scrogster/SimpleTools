@@ -4,7 +4,7 @@ Implementation Phase
 The purpose of the implementation phase is to conduct repeated removals from the population until no more animals are detected.  This script takes data collected from each removal session to date and updates the estimate of the residual population size.  The model can also use up to two additional monitoring methods to detect the presence of individuals.  Future versions will also calculates an estimate of the effort required to remove the remaining individuals.
 
 ```{r read_functions, include=FALSE}
-source("Framework_functions.R")
+source("R/Framework_functions.R")
 library(knitr)
 library(raster)
 library(sf)
@@ -16,7 +16,7 @@ set.seed(666)
 ### Read in the region shapefile...
 
 ```{r}
-region<- read_sf("Stuff","San_Nicolas_projected")
+region<- read_sf("Stuff/San_Nicolas_projected.gpkg")
 region<- filter(region, SP_ID==0)
 
 area<- st_area(region)/1e6 #in km2
@@ -51,6 +51,7 @@ plot(cumsum(removed$Effort),cumsum(removed$Removed),type='l',xlab="Cumulative ef
 #### Update of the residual population size
 
 ```{r estimates,echo=FALSE, message=FALSE}
+data$cam.mon<-NULL ; data$sign.mon<-NULL
 if(is.null(data$cam.mon) & is.null(data$sign.mon)){
   cat("No camera or Sign monitoring present - using removal model only") 
   rem1<- Fit.RemMon(data)
