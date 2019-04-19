@@ -10,20 +10,28 @@ source("R/Framework_functions.R")
 
 ##DEFINE THE USER INTERFACE################################################################################################
 ui<-fluidPage(
+	tags$head(
+		tags$style(HTML("hr {border-top: 1px solid #000000;}"))
+	),
 	titlePanel("Pre-implementation Monitoring"),
 	sidebarLayout(
-		sidebarPanel("Data input",
-				   #INPUT THE REGION, detector and detections FILEs ---------------------------------------------------
+		sidebarPanel(#INPUT THE REGION, detector and detections FILEs ---------------------------------------------------
 				   fileInput(inputId="boundary", label="Region file", accept=c(".gpkg")),
 				   fileInput(inputId="detectors", label="Detector locations",   accept=c("text/csv", ".csv")),
 				   fileInput(inputId="detections", label="Detection histories", accept=c("text/csv", ".csv")),
+				   hr(),
 				   numericInput(inputId="res", label="Grid cell size", min=0, max=NA, value=1000, step=100),
-				   radioButtons(inputId="gridtype", label="Grid type", c("Square"=1, "Hex"=0)),
+				   radioButtons(inputId="gridtype", label="Grid type", inline=TRUE, c("Square"=1, "Hex"=0)),
+				   hr(),
 				   #SELECT APPROPRIATE MODEL --------------------------------------------------------------------------
-				   radioButtons(inputId="Model", label="Choose Model", choices=c("N-mixture"="Nmix", "Royle-Nichols"="RN")),
+				   radioButtons(inputId="Model", label="Choose Model", inline=TRUE,
+				   		   choices=c("N-mixture"="Nmix", "Royle-Nichols"="RN", "Occupancy"="Occ")),
 				   #MCMC options and trigger fitting of model ---------------------------------------------------------
+				   splitLayout(
 				   numericInput(inputId="burnin", label="burnin", min=500, max=10000, value=500, step=100),
 				   numericInput(inputId="samples", label="samples", min=500, max=10000, value=1000, step=100),
+				   numericInput(inputId="chains", label="chains", min=1, max=10, value=2, step=1)
+				   ),
 				   actionButton("Fit_mod", "Fit model")
 				   ),
 		mainPanel(
