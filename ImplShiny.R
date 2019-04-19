@@ -39,6 +39,7 @@ ui<-fluidPage(
 				   	numericInput(inputId="chains", label="chains", min=1, max=10, value=2, step=1)
 				   ),
 				   actionButton("Fit_mod", "Fit model"),
+				   hr(),
 				   h3("Results"),
 				   actionButton("PlotRemoval", "Plot removal"),
 				   actionButton("PlotPeradicated", "Calculate Pr(eradication)")
