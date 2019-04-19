@@ -4,20 +4,21 @@ projects
 
 **File descriptions**:
 
-*Simulated Population.R* – R code used to generate test data from a
-simulated pest eradication. The simulated data is saved in Stuff/. for
-use in *Pre\_Implement.Rmd* or *Implementation.Rmd*.
-
-*Framework\_functions.r* - Functions and models used in all \*Rmd files
+*R/Framework\_functions.R* - Functions and models used in all \*Rmd files
 or *Simulated Population.r* are found here.
 
-*Pre\_Implement.Rmd* – R markdown document that undertakes an initial
+*R/Simulated\_Population.R* – R code used to generate test data from a
+simulated pest eradication. The simulated data is saved in Stuff/. for
+use in *Pre_Implement.Rmd* or *Implementation.Rmd*.
+
+
+*Pre\_Implement.Rmd* – Rmarkdown document that undertakes an initial
 assessment of the pest population to be eradicated, primarily to
 estimate initial abundance. Input monitoring data and region shapefile
-are required. Input monitoring data can be generated with *Simulated
-Population.r*
+are required. Input monitoring data can be generated with *R/Simulated
+\_Population.r*.
 
-*Implementation\_Rmd* – R markdown document that takes data on the
+*Implementation\_Rmd* – Rmarkdown document that takes data on the
 sequential removal of individuals from the pest population and uses it
 to estimate the residual population remaining. Can also make use of
 additional, non-removal monitoring data. Initially this is confined to
@@ -35,5 +36,5 @@ rate (probability of falsely declaring eradication successful)
 
 ## Prerequisites
 
-The scripts require packages *tidyverse*, *raster*, *spatstat*, *sf* and
+The scripts require packages *tidyverse*, *raster*, *spatstat*, *sf*, *shiny*, *kableExtra* and
 *maptools*.
